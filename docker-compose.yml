@@ -4,9 +4,9 @@ services:
   ubuntu-development:
     container_name: ubuntu-development
     build:
-      context: ubuntu
+      context: docker/ubuntu
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "10000:10000"
     volumes:
       - /Users/richardfrancis/dev_containers/rf-workspace-ubuntu/data:/home
