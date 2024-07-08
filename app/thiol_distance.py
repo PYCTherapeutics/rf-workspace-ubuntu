@@ -20,12 +20,11 @@ def get_cysteine_atoms(pdb_file: str) -> list:
         
     chain.atom_to_internal_coordinates(verbose=True)
     for residue in chain:
-        if residue.get_resname() == 'CYS':
-            sg_atom = residue['SG']
+        if residue.get_resname() == 'CYS':            
             ca_atom = residue['CA']
-            cys_atoms.append((ca_atom.get_coord(), sg_atom.get_coord()))
-            #if atom.get_id() == 'SG':
-            #    sulfur_coords.append(atom.get_coord())
+            cb_atom = residue['CB']
+            sg_atom = residue['SG']
+            cys_atoms.append((ca_atom.get_coord(), cb_atom.get_coord(), sg_atom.get_coord()))
 
     if len(cys_atoms) != 2:
         raise ValueError("The PDB file does not contain exactly two Cysteine residues.")
@@ -37,36 +36,6 @@ def calculate_distance(coord1: np.ndarray, coord2: np.ndarray) -> float:
     # from sklearn.metrics.pairwise import paired_euclidean_distances
     # paired_euclidean_distances(coord1,coord2)[0]
     return np.linalg.norm(coord1 - coord2)
-
-def calculate_angle(coord1: np.ndarray, coord2: np.ndarray, coord3: np.ndarray) -> float:
-    vec1 = coord1 - coord2
-    vec2 = coord3 - coord2
-    cosine_angle = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
-    angle = np.arccos(cosine_angle)
-    return np.degrees(angle)
-
-def calculate_dihedral(coord1: np.ndarray, coord2: np.ndarray, coord3: np.ndarray, coord4: np.ndarray) -> float:
-    # This function uses vector projections and cross products to compute the dihedral angle.
-    # It projects vectors onto a plane orthogonal to one of the bond vectors (b2), providing a clear geometric interpretation of the dihedral angle, which tends to be more widely used and straightforward for structural biology contexts
-
-    # Vectors between points
-    b1 = coord2 - coord1
-    b2 = coord3 - coord2
-    b3 = coord4 - coord3
-
-    # Normalize b2 so that it does not influence magnitude of vector rejections
-    b2 /= np.linalg.norm(b2)
-
-    # Orthogonal vectors to b2
-    v = b1 - np.dot(b1, b2) * b2
-    w = b3 - np.dot(b3, b2) * b2
-
-    # Normal vectors
-    x = np.dot(v, w)
-    y = np.dot(np.cross(b2, v), w)
-    
-    angle = np.degrees(np.arctan2(y, x))
-    return angle
 
 # next three functions are from https://pycrawfordprogproj.readthedocs.io/en/latest/Project_01/Project_01.html
 def bond_unit_vector(i: np.ndarray, j: np.ndarray) -> np.ndarray:
@@ -94,6 +63,8 @@ def dihedral_angle(i: np.ndarray, j: np.ndarray, k: np.ndarray, l: np.ndarray) -
     res = np.sign(res) if np.abs(res) > 1 else res
     return np.arccos(res) * 180 / np.pi
 
+
+    
 def process_pdbs(pdb_files_directory: str) -> list:
 
     outstrings = []
@@ -103,25 +74,34 @@ def process_pdbs(pdb_files_directory: str) -> list:
             try:
                 cys_atoms = get_cysteine_atoms(file_path)
                 # Coordinates of CA and SG atoms
-                ca1, sg1 = cys_atoms[0]
-                ca2, sg2 = cys_atoms[1]
+                ca1, cb1, sg1 = cys_atoms[0]
+                ca2, cb2, sg2 = cys_atoms[1]
                 
                 # Calculate distance between SG atoms
                 distance = calculate_distance(sg1, sg2)
+                outstrings.append("Distance between thiol groups in {}: {:.2f} Å".format(pdb_file,distance))
                 
                 # Calculate bond angle CA-SG-CA
-                angle_ca_sg_ca = calculate_angle(ca1, sg1, ca2)
-                angle_ca_sg_ca2 = bond_angle(ca1, sg1, ca2)
-                
-                # Calculate dihedral angle CA-SG-SG-CA
-                dihedral_angle_ca_sg_sg_ca = calculate_dihedral(ca1, sg1, sg2, ca2)
-                dihedral_angle_ca_sg_sg_ca2 = dihedral_angle(ca1, sg1, sg2, ca2)                                
+                angle_ca1_sg1_ca2 = bond_angle(ca1, sg1, ca2)
+                angle_ca1_sg2_ca2 = bond_angle(ca1, sg2, ca2)
+                outstrings.append("Angle between CA1-SG1-CA2 in {}: {:.2f} degrees".format(pdb_file,angle_ca1_sg1_ca2))
+                outstrings.append("Angle between CA1-SG2-CA2 in {}: {:.2f} degrees".format(pdb_file,angle_ca1_sg2_ca2))
+                # Calculate bond angle CB-SG-CB
+                angle_cb1_sg1_cb2 = bond_angle(cb1, sg1, cb2)
+                angle_cb1_sg2_cb2 = bond_angle(cb1, sg2, cb2)
+                outstrings.append("Angle between CB1-SG1-CB2 in {}: {:.2f} degrees".format(pdb_file,angle_cb1_sg1_cb2))
+                outstrings.append("Angle between CB1-SG2-CB2 in {}: {:.2f} degrees".format(pdb_file,angle_cb1_sg2_cb2))
+                # Calculate bond angle CA-CB-SG
+                angle_ca1_cb1_sg1 = bond_angle(ca1, cb1, sg1)
+                angle_ca2_cb2_sg2 = bond_angle(ca2, cb2, sg2)                
+                outstrings.append("Angle between CA1-CB1-SG1 in {}: {:.2f} degrees".format(pdb_file,angle_ca1_cb1_sg1))
+                outstrings.append("Angle between CA2-CB2-SG2 in {}: {:.2f} degrees".format(pdb_file,angle_ca2_cb2_sg2))
 
-                outstrings.append("Distance between thiol groups in {}: {:.2f} Å".format(pdb_file,distance))
-                outstrings.append("Angle between CA-SG-CA in {}: {:.2f} degrees".format(pdb_file,angle_ca_sg_ca))
-                outstrings.append("Dihedral angle CA-SG-SG-CA in {}: {:.2f} degrees - vector projection onto a plane orthogonal a bond vector".format(pdb_file,dihedral_angle_ca_sg_sg_ca))
-                #outstrings.append("Angle between CA-SG-CA in {}: {:.2f} degrees".format(pdb_file,angle_ca_sg_ca2))
-                outstrings.append("Dihedral angle CA-SG-SG-CA in {}: {:.2f} degrees - adjusted by explicit bond angle computation\n".format(pdb_file,dihedral_angle_ca_sg_sg_ca2))
+                # Calculate dihedral angle CB-SG-SG-CB
+                dihedral_angle_ca_sg_sg_ca = dihedral_angle(ca1, sg1, sg2, ca2)
+                dihedral_angle_cb_sg_sg_cb = dihedral_angle(cb1, sg1, sg2, cb2)                
+                outstrings.append("Dihedral angle CA-SG-SG-CA in {}: {:.2f} degrees".format(pdb_file,dihedral_angle_ca_sg_sg_ca))
+                outstrings.append("Dihedral angle CB-SG-SG-CB in {}: {:.2f} degrees\n".format(pdb_file,dihedral_angle_cb_sg_sg_cb))
             
             except ValueError as e:
                 print(e)
