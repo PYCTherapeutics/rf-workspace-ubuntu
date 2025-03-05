@@ -110,7 +110,7 @@ def process_pdbs(pdb_files_directory: str) -> list:
 
 def main():
 
-    pdb_files_directory = args.pdb_dir # "../data/Peptides/spr_binders/CNLWEFECGASG/"
+    pdb_files_directory = args.pdb_dir # "../data/Peptides/spr_binders/ABDCGG/"
     bond_strings = process_pdbs(pdb_files_directory)
 
     try:
